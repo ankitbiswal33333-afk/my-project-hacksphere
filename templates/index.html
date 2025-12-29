@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumLab: Semiconductor Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a; --panel-bg: #1e293b; --text-main: #e2e8f0;
+            --neon-blue: #06b6d4; --neon-red: #f43f5e; --neon-green: #10b981;
+            --glass: rgba(30, 41, 59, 0.7);
+        }
+        
+        body { margin: 0; background: var(--bg-dark); color: var(--text-main); font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
+        
+        /* LOGIN OVERLAY */
+        #loginOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px);
+            display: flex; justify-content: center; align-items: center; z-index: 999;
+        }
+        .login-box {
+            background: var(--panel-bg); padding: 40px; border-radius: 12px;
+            border: 1px solid #334155; box-shadow: 0 0 40px rgba(6, 182, 212, 0.2);
+            text-align: center; width: 300px;
+        }
+        .sci-input {
+            background: #0f172a; border: 1px solid #334155; color: white;
+            padding: 12px; width: 100%; margin: 10px 0; border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace; box-sizing: border-box;
+        }
+        .btn-neon {
+            background: var(--neon-blue); color: #000; font-weight: bold; border: none;
+            padding: 12px 24px; border-radius: 6px; cursor: pointer; width: 100%;
+            text-transform: uppercase; letter-spacing: 1px; transition: 0.3s;
+        }
+        .btn-neon:hover { box-shadow: 0 0 15px var(--neon-blue); }
+
+        /* MAIN DASHBOARD */
+        .dashboard { display: grid; grid-template-columns: 320px 1fr; height: 100vh; display: none; }
+        
+        /* SIDEBAR */
+        .sidebar {
+            background: var(--panel-bg); border-right: 1px solid #334155;
+            padding: 20px; display: flex; flex-direction: column; gap: 20px;
+            overflow-y: auto;
+        }
+        .brand { font-family: 'JetBrains Mono'; font-size: 1.2em; color: var(--neon-blue); margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 15px;}
+        
+        .control-group { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; }
+        .control-label { font-size: 0.8em; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; display: block; }
+        
+        /* SLIDERS & INPUTS */
+        input[type="range"] { width: 100%; accent-color: var(--neon-blue); }
+        select { background: #1e293b; color: white; border: 1px solid #475569; width: 100%; padding: 8px; border-radius: 4px; }
+
+        /* MAIN AREA */
+        .main-view { padding: 30px; display: grid; grid-template-rows: auto 1fr auto; gap: 20px; }
+        
+        /* METRICS PANEL */
+        .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .metric-card {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            padding: 15px; border-radius: 10px; border: 1px solid #334155;
+        }
+        .metric-val { font-family: 'JetBrains Mono'; font-size: 1.5em; color: var(--neon-blue); display: block; }
+        .metric-name { font-size: 0.75em; color: #94a3b8; }
+
+        /* CHART CONTAINER */
+        .chart-container { background: var(--panel-bg); border-radius: 12px; padding: 20px; border: 1px solid #334155; position: relative; }
+        
+        /* STATUS BAR */
+        .status-bar { 
+            background: #0f172a; padding: 10px 20px; border-radius: 50px; 
+            display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155;
+        }
+        .status-light { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-ok { background: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); }
+        .status-bad { background: var(--neon-red); box-shadow: 0 0 10px var(--neon-red); }
+
+    </style>
+</head>
+<body>
+
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2 style="color:white; margin-top:0;">ACCESS CONTROL</h2>
+            <p style="color:#94a3b8; font-size:0.9em;">AUTHORIZED PERSONNEL ONLY</p>
+            <input type="text" id="uName" class="sci-input" placeholder="OPERATOR ID">
+            <input type="password" id="pWord" class="sci-input" placeholder="ACCESS CODE">
+            <button class="btn-neon" onclick="login()">INITIALIZE SYSTEM</button>
+            <p id="loginMsg" style="color:var(--neon-red); font-size:0.8em; min-height:1.2em;"></p>
+        </div>
+    </div>
+
+    <div class="dashboard" id="dashboard">
+        
+        <div class="sidebar">
+            <div class="brand">⚡ QUANTUM LAB v2.0</div>
+            
+            <div class="control-group">
+                <span class="control-label">Component Configuration</span>
+                <select id="material" onchange="toggleZener()">
+                    <option value="Si">Silicon (Si) - Standard</option>
+                    <option value="Ge">Germanium (Ge)</option>
+                    <option value="Zener">Zener Diode</option>
+                </select>
+                
+                <div id="zenerOpts" style="display:none; margin-top:10px;">
+                    <span class="control-label">Breakdown Voltage (Vz)</span>
+                    <input type="number" id="vz" class="sci-input" value="5.1" step="0.1">
+                </div>
+
+                <div style="margin-top:10px;">
+                    <span class="control-label">Ideality Factor (n): <span id="nVal" style="color:white">1.5</span></span>
+                    <input type="range" min="1.0" max="2.0" step="0.1" value="1.5" oninput="document.getElementById('nVal').innerText=this.value">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">Environment</span>
+                <span class="control-label">Temperature: <span id="tempDisplay" style="color:white">27°C</span></span>
+                <input type="range" id="temp" min="-50" max="150" value="27" oninput="document.getElementById('tempDisplay').innerText=this.value+'°C'">
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">DC Source Control</span>
+                <input type="number" id="voltage" class="sci-input" value="0.7" step="0.05">
+                <button class="btn-neon" onclick="measureSingle()">SINGLE MEASURE</button>
+                <button class="btn-neon" style="background:transparent; border:1px solid var(--neon-blue); color:var(--neon-blue); margin-top:10px;" onclick="runSweep()">RUN V-I SWEEP</button>
+            </div>
+
+            <button onclick="downloadCSV()" style="background:#334155; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">💾 EXPORT DATA (.CSV)</button>
+            <button onclick="logout()" style="background:#ef4444; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer; margin-top:auto;">LOGOUT</button>
+        </div>
+
+        <div class="main-view">
+            <div class="metrics-row">
+                <div class="metric-card">
+                    <span class="metric-name">FORWARD CURRENT (Id)</span>
+                    <span class="metric-val" id="dispI">0.000 mA</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-name">POWER DISSIPATION (Pd)</span>
+                    <span class="metric-val" id="dispP">0.000 mW</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-name">THERMAL VOLTAGE (Vt)</span>
+                    <span class="metric-val" id="dispVt">25.8 mV</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-name">LEAKAGE CURRENT (Is)</span>
+                    <span class="metric-val" id="dispIs">1.0 pA</span>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="mainChart"></canvas>
+            </div>
+
+            <div class="status-bar">
+                <div><span class="status-light status-ok" id="statusLight"></span> SYSTEM STATUS: <span id="statusText" style="font-weight:bold; color:var(--neon-green)">OPERATIONAL</span></div>
+                <div style="font-size:0.8em; color:#64748b;">SECURE CONNECTION | ENCRYPTED</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const API = '/api';
+    
+    let chartInstance = null;
+    let lastData = [];
+
+    // --- 1. AUTH LOGIC ---
+    async function login() {
+        const u = document.getElementById('uName').value;
+        const p = document.getElementById('pWord').value;
+        
+        const res = await fetch(`${API}/login`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: u, password: p}),
+            credentials: 'include'
+        });
+
+        if (res.ok) {
+            document.getElementById('loginOverlay').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'grid';
+        } else {
+            document.getElementById('loginMsg').innerText = "ACCESS DENIED: INVALID CREDENTIALS";
+        }
+    }
+
+    async function logout() {
+        await fetch(`${API}/logout`, {method: 'POST', credentials: 'include'});
+        location.reload();
+    }
+
+    // --- 2. LAB LOGIC ---
+    function getParams() {
+        return {
+            material: document.getElementById('material').value,
+            temp: document.getElementById('temp').value,
+            zener_v: document.getElementById('vz').value,
+            ideality: document.getElementById('nVal').innerText,
+            voltage: document.getElementById('voltage').value
+        };
+    }
+
+    async function measureSingle() {
+        const params = getParams();
+        const res = await fetch(`${API}/measure`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(params), credentials: 'include'
+        });
+
+        if(res.status === 401) { logout(); return; }
+        
+        const data = await res.json();
+        updateUI(data);
+    }
+
+    async function runSweep() {
+        const params = getParams();
+        // Intelligent range: Zener needs negative sweep, Si needs positive
+        params.start = params.material === 'Zener' ? -(parseFloat(params.zener_v) + 2) : -2;
+        params.end = 1.5;
+
+        const res = await fetch(`${API}/sweep`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(params), credentials: 'include'
+        });
+        
+        const data = await res.json();
+        lastData = data.data; // Save for export
+        drawGraph(data.data);
+    }
+
+    // --- 3. UI UPDATES ---
+    function updateUI(data) {
+        document.getElementById('dispI').innerText = (data.current * 1000).toFixed(4) + " mA";
+        document.getElementById('dispP').innerText = (data.power * 1000).toFixed(3) + " mW";
+        document.getElementById('dispVt').innerText = (data.vt * 1000).toFixed(2) + " mV";
+        document.getElementById('dispIs').innerText = (data.is_leakage * 1e12).toFixed(1) + " pA";
+
+        const statusText = document.getElementById('statusText');
+        const statusLight = document.getElementById('statusLight');
+        
+        if (data.status.includes("BURNT") || data.status.includes("CRITICAL")) {
+            statusText.innerText = data.status;
+            statusText.style.color = "var(--neon-red)";
+            statusLight.className = "status-light status-bad";
+        } else {
+            statusText.innerText = "OPERATIONAL";
+            statusText.style.color = "var(--neon-green)";
+            statusLight.className = "status-light status-ok";
+        }
+    }
+
+    function toggleZener() {
+        const isZener = document.getElementById('material').value === 'Zener';
+        document.getElementById('zenerOpts').style.display = isZener ? 'block' : 'none';
+    }
+
+    function drawGraph(points) {
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        if(chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: points.map(p => p.v),
+                datasets: [{
+                    label: 'Current (A)',
+                    data: points.map(p => p.i),
+                    borderColor: '#06b6d4',
+                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    function downloadCSV() {
+        if (!lastData.length) { alert("Please run a Sweep first!"); return; }
+        let csv = "Voltage(V),Current(A)\n" + lastData.map(r => `${r.v},${r.i}`).join("\n");
+        const a = document.createElement('a');
+        a.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+        a.download = 'experiment_data.csv';
+        a.click();
+    }
+</script>
+</body>
+</html>
